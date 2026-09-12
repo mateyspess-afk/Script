@@ -1,6 +1,24 @@
 -- FAKE VR + NEXUS VR + ANIMAÇÃO DE CAMINHADA VR + MOVIMENTO AJUSTADO + BRAÇOS/CABEÇA ALINHADOS + OTIMIZADO
-local remote = game:GetService("ReplicatedStorage").NexusVRCharacterModel.UpdateInputs
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local plr = game:GetService("Players").LocalPlayer
+local BROOKHAVEN_PLACE_ID = 4924922222
+local JOGO_INCORRETO = [[🇧🇷 você não está no jogo correto vá para o Brookhaven para usar o script
+🇺🇸 You're not in the correct game. Go to Brookhaven to use the script.]]
+
+if game.PlaceId ~= BROOKHAVEN_PLACE_ID then
+    plr:Kick(JOGO_INCORRETO)
+    return
+end
+
+local nexusModel = ReplicatedStorage:WaitForChild("NexusVRCharacterModel", 5)
+if not nexusModel then
+    return
+end
+
+local remote = nexusModel:WaitForChild("UpdateInputs", 5)
+if not remote then
+    return
+end
 local cam = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +27,10 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 
 -- Notificar servidor que está pronto
-game:GetService("ReplicatedStorage").NexusVRCharacterModel.ReplicationReady:FireServer()
+local replicationReady = nexusModel:FindFirstChild("ReplicationReady")
+if replicationReady and replicationReady:IsA("RemoteEvent") then
+    replicationReady:FireServer()
+end
 
 -- Variáveis de controle
 local leftJoyMove = Vector2.new(0, 0)
@@ -179,29 +200,65 @@ criarJoystickZ("Esquerdo", UDim2.new(0, 190, 1, -150), Color3.fromRGB(255, 150, 
 criarJoystick("Direito", UDim2.new(1, -175, 1, -180), Color3.fromRGB(70, 150, 255))
 criarJoystickZ("Direito", UDim2.new(1, -265, 1, -150), Color3.fromRGB(150, 200, 255))
 
--- BOTÃO MOSTRAR/OCULTAR
+-- BOTÃO MINIMIZAR
 local BotaoAlternar = Instance.new("TextButton")
 BotaoAlternar.Name = "AlternarVR"
-BotaoAlternar.Size = UDim2.new(0, 130, 0, 38)
-BotaoAlternar.Position = UDim2.new(0.5, -65, 0, 35)
+BotaoAlternar.AnchorPoint = Vector2.new(0.5, 0)
+BotaoAlternar.Size = UDim2.fromOffset(48, 42)
+BotaoAlternar.Position = UDim2.new(0.5, 0, 0, 12)
 BotaoAlternar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-BotaoAlternar.BackgroundTransparency = 0.4
-BotaoAlternar.Text = "Esconder Controles"
+BotaoAlternar.BackgroundTransparency = 0.15
+BotaoAlternar.Text = "−"
 BotaoAlternar.TextColor3 = Color3.new(1,1,1)
-BotaoAlternar.TextSize = 14
+BotaoAlternar.TextSize = 28
 BotaoAlternar.Font = Enum.Font.GothamBold
+BotaoAlternar.AutoButtonColor = true
+BotaoAlternar.ZIndex = 20
 BotaoAlternar.Visible = false
 BotaoAlternar.Parent = ScreenGui
-Instance.new("UICorner", BotaoAlternar).CornerRadius = UDim.new(0,8)
+Instance.new("UICorner", BotaoAlternar).CornerRadius = UDim.new(0,12)
 
+local nomesControles = {"Esquerdo_Painel","Esquerdo_Z_Painel","Direito_Painel","Direito_Z_Painel"}
 local visivel = true
-BotaoAlternar.MouseButton1Click:Connect(function()
-    visivel = not visivel
-    BotaoAlternar.Text = visivel and "Esconder Controles" or "Mostrar Controles"
-    for _,nome in next,{"Esquerdo_Painel","Esquerdo_Z_Painel","Direito_Painel","Direito_Z_Painel"} do
+
+-- Mantém os controles dentro da área visível, inclusive após girar a tela.
+local function manterNaTela(obj)
+    if not obj or not obj.Parent then return end
+    local viewport = cam.ViewportSize
+    local tamanho = obj.AbsoluteSize
+    local maxX = math.max(0, viewport.X - tamanho.X)
+    local maxY = math.max(0, viewport.Y - tamanho.Y)
+    local x = math.clamp(obj.AbsolutePosition.X, 0, maxX)
+    local y = math.clamp(obj.AbsolutePosition.Y, 0, maxY)
+    if math.abs(obj.AbsolutePosition.X - x) > 1 or math.abs(obj.AbsolutePosition.Y - y) > 1 then
+        obj.AnchorPoint = Vector2.zero
+        obj.Position = UDim2.fromOffset(x, y)
+    end
+end
+
+local function reposicionarControles()
+    for _,nome in ipairs(nomesControles) do
+        manterNaTela(ScreenGui:FindFirstChild(nome))
+    end
+    manterNaTela(BotaoAlternar)
+end
+
+local function atualizarControles()
+    BotaoAlternar.Text = visivel and "−" or "+"
+    for _,nome in ipairs(nomesControles) do
         local p = ScreenGui:FindFirstChild(nome)
         if p then p.Visible = visivel end
     end
+    task.defer(reposicionarControles)
+end
+
+BotaoAlternar.Activated:Connect(function()
+    visivel = not visivel
+    atualizarControles()
+end)
+
+cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    task.defer(reposicionarControles)
 end)
 
 -- INTRO ÉPICA
@@ -210,13 +267,19 @@ Intro.Size = UDim2.new(1,0,1,0)
 Intro.BackgroundColor3 = Color3.fromRGB(8,8,12)
 Intro.Parent = ScreenGui
 local TextoIntro = Instance.new("TextLabel")
-TextoIntro.Size = UDim2.new(0, 420, 0, 110)
-TextoIntro.Position = UDim2.new(0.5,-210,0.5,-55)
+TextoIntro.AnchorPoint = Vector2.new(0.5, 0.5)
+TextoIntro.Size = UDim2.new(0.86, 0, 0, 110)
+TextoIntro.Position = UDim2.new(0.5, 0, 0.5, 0)
 TextoIntro.BackgroundTransparency = 1
 TextoIntro.Text = "SCRIPT BY IKER • VR MOBILE"
 TextoIntro.TextColor3 = Color3.new(1,1,1)
-TextoIntro.TextSize = 36
+TextoIntro.TextScaled = true
+TextoIntro.TextWrapped = true
 TextoIntro.Font = Enum.Font.FredokaOne
+local IntroTextSize = Instance.new("UITextSizeConstraint")
+IntroTextSize.MinTextSize = 18
+IntroTextSize.MaxTextSize = 36
+IntroTextSize.Parent = TextoIntro
 TextoIntro.TextTransparency = 1
 TextoIntro.Parent = Intro
 local Traco = Instance.new("UIStroke")
@@ -239,6 +302,7 @@ task.spawn(function()
         if p then p.Visible = true end
     end
     BotaoAlternar.Visible = true
+    task.defer(reposicionarControles)
 end)
 
 -- SISTEMA PRINCIPAL + ANIMAÇÃO VR DE CAMINHADA
