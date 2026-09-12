@@ -1,14 +1,35 @@
 -- FAKE VR + NEXUS VR + ANIMAÇÃO DE CAMINHADA VR + MOVIMENTO AJUSTADO + BRAÇOS/CABEÇA ALINHADOS + OTIMIZADO
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local plr = game:GetService("Players").LocalPlayer
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
 local BROOKHAVEN_PLACE_ID = 4924922222
+local GUARD_VERSION = "v2"
 local JOGO_INCORRETO = [[🇧🇷 você não está no jogo correto vá para o Brookhaven para usar o script
 🇺🇸 You're not in the correct game. Go to Brookhaven to use the script.]]
 
-if game.PlaceId ~= BROOKHAVEN_PLACE_ID then
-    plr:Kick(JOGO_INCORRETO)
+local function bloquearJogoIncorreto()
+    warn("[NexusVR " .. GUARD_VERSION .. "] Jogo incorreto. PlaceId: " .. tostring(game.PlaceId))
+    pcall(function()
+        if plr and plr.Parent then
+            plr:Kick(JOGO_INCORRETO)
+        end
+    end)
+    -- Alguns executores atrasam a primeira chamada de Kick; tenta novamente.
+    task.delay(0.25, function()
+        pcall(function()
+            if plr and plr.Parent then
+                plr:Kick(JOGO_INCORRETO)
+            end
+        end)
+    end)
+end
+
+local placeIdAtual = tonumber(game.PlaceId) or -1
+if placeIdAtual ~= BROOKHAVEN_PLACE_ID then
+    bloquearJogoIncorreto()
     return
 end
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local nexusModel = ReplicatedStorage:WaitForChild("NexusVRCharacterModel", 5)
 if not nexusModel then
